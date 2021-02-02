@@ -1,0 +1,4 @@
+[submodule "sinter"]
+	path = main/lib/sinter
+	url = git@github.com:source-academy/sinter.git
+	branch = master
