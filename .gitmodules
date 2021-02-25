@@ -2,3 +2,6 @@
 	path = main/lib/sinter
 	url = git@github.com:source-academy/sinter.git
 	branch = master
+[submodule "components/espmqtt"]
+	path = components/espmqtt
+	url = https://github.com/espressif/esp-mqtt.git

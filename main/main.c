@@ -1,38 +1,24 @@
-#include <stdint.h>
-#include <stdio.h>
+#include "stdint.h"
+#include "stdio.h"
 
-#include <driver/uart.h>
-#include <esp_system.h>
-#include <esp_vfs_dev.h>
-#include <sinter.h>
+#include "driver/uart.h"
+#include "esp_system.h"
+#include "esp_vfs_dev.h"
+#include "esp_event.h"
+#include "esp_log.h"
+
+#include "wifi/connect.h"
+
+#include "mqtt/mqtt.h"
+
+static const char *TAG = "main";
 
 static _Noreturn void app_exit(void) {
-  printf("Restarting now.\n");
   fflush(stdout);
   esp_restart();
   while (1) {
     (void)0;
   }
-}
-
-static void print_string(const char *s, bool is_error) {
-  (void) is_error;
-  printf("%s", s);
-}
-
-static void print_integer(int32_t v, bool is_error) {
-  (void) is_error;
-  printf("%d", v);
-}
-
-static void print_float(float v, bool is_error) {
-  (void) is_error;
-  printf("%f", v);
-}
-
-static void print_flush(bool is_error) {
-  (void) is_error;
-  printf("\n");
 }
 
 void app_main(void) {
@@ -42,42 +28,16 @@ void app_main(void) {
   setvbuf(stdin, NULL, _IONBF, 0);
   setvbuf(stdout, NULL, _IONBF, 0);
 
-  printf("Sinter ESP32 runner.\n");
-  uint32_t binary_size = 0;
+  ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-  if (fread(&binary_size, 1, sizeof(uint32_t), stdin) != 4) {
-    printf("Failed to read binary size.\n");
+  ESP_LOGI(TAG, "esp-source starting...");
+  ESP_LOGI(TAG, "connecting to WiFi...");
+  if (wifi_connect() != 0) { // successful connect
+    ESP_LOGE(TAG, "error connecting to wifi, restarting...");
     app_exit();
+  } else {
+    ESP_LOGI(TAG, "connected to wifi!");
   }
 
-  unsigned char *binary = malloc(binary_size);
-  if (!binary) {
-    printf("Failed to allocate memory for binary.\n");
-    app_exit();
-  }
-
-  uint32_t read = 0;
-  while (read < binary_size) {
-    size_t read_now = fread(binary + read, 1, binary_size - read, stdin);
-    if (read_now == 0) {
-      break;
-    }
-    read += read_now;
-  }
-
-  if (read < binary_size) {
-    printf("Failed to read binary.\n");
-    app_exit();
-  }
-
-  sinter_printer_float = print_float;
-  sinter_printer_string = print_string;
-  sinter_printer_integer = print_integer;
-  sinter_printer_flush = print_flush;
-
-  sinter_value_t result;
-  sinter_fault_t fault = sinter_run(binary, binary_size, &result);
-
-  printf("Program exited with fault %d and result type %d (%d, %d, %f)\n", fault, result.type, result.integer_value, result.boolean_value, result.float_value);
-  app_exit();
+  mqtt_app_start();
 }

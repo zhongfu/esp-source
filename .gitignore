@@ -1,1 +1,4 @@
-build/
+/build/
+/sdkconfig.old
+/.vscode
+*.swp

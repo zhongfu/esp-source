@@ -1,5 +1,11 @@
-idf_component_register(SRCS "main.c"
-                    INCLUDE_DIRS ".")
+idf_component_register(SRCS
+                        "main.c"
+                        "wifi/connect.c"
+                        "mqtt/mqtt.c"
+                        "sling/sling_sinter.c"
+                    INCLUDE_DIRS "."
+                    EMBED_TXTFILES
+                        mqtt/mqtt_client_cert.pem mqtt/mqtt_client_key.pem mqtt/mqtt_server_cert.pem)
 
 # Build static library, do not build test executables
 option(BUILD_SHARED_LIBS OFF)
