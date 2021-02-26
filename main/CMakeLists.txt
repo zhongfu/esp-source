@@ -1,6 +1,7 @@
 idf_component_register(SRCS
                         "main.c"
                         "wifi/connect.c"
+                        "wifi/wifi.c"
                         "mqtt/mqtt.c"
                         "sling/sling_sinter.c"
                     INCLUDE_DIRS "."
