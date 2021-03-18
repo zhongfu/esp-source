@@ -48,7 +48,7 @@ void app_main(void) {
 
   xTaskCreatePinnedToCore(&wifi_task,
                       "wifi_task",
-                      10000,
+                      10000, // TODO check out uxTaskGetStackHighWaterMark()
                       NULL,
                       2,
                       &s_wifi_task_handle,

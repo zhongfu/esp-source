@@ -11,16 +11,21 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/message_buffer.h"
+
 #include "esp_system.h"
 #include "nvs_flash.h"
 #include "esp_event.h"
 #include "esp_netif.h"
-
 #include "esp_log.h"
 #include "mqtt_client.h"
 #include "esp_tls.h"
 #include "esp_ota_ops.h"
+
 #include "sinter.h"
+#include "../sinter/sinter_task.h"
 #include "../sling/sling_message.h"
 #include "../sling/sling_sinter.h"
 
@@ -37,19 +42,9 @@ extern const uint8_t mqtt_client_cert_pem_end[]     asm("_binary_mqtt_client_cer
 extern const uint8_t mqtt_client_key_pem_start[]   asm("_binary_mqtt_client_key_pem_start");
 extern const uint8_t mqtt_client_key_pem_end[]     asm("_binary_mqtt_client_key_pem_end");
 
-static const char *fault_names[] = {"no fault",
-                                    "out of memory",
-                                    "type error",
-                                    "divide by zero",
-                                    "stack overflow",
-                                    "stack underflow",
-                                    "uninitialised load",
-                                    "invalid load",
-                                    "invalid program",
-                                    "internal error",
-                                    "incorrect function arity",
-                                    "program called error()",
-                                    "uninitialised heap"};
+static MessageBufferHandle_t mbuf;
+
+static xTaskHandle sinter_task_handle;
 
 static uint32_t msg_no = 0;
 static uint32_t display_start_counter = 0;
@@ -81,6 +76,7 @@ void send_raw(esp_mqtt_client_handle_t client, char *msg_type, char *payload, si
     printf("\n");
 
     esp_mqtt_client_publish(client, topic, payload, payload_size, 1, 0);
+    free(topic);
 }
 
 void send_hello(esp_mqtt_client_handle_t client) {
@@ -100,112 +96,43 @@ void send_status(esp_mqtt_client_handle_t client, uint16_t status) {
     char *buf = malloc(buf_len);
     memcpy(buf, to_send, buf_len);
     send_raw(client, "status", buf, buf_len);
+    free(to_send);
+    free(buf);
 }
 
-void send_display_flush(esp_mqtt_client_handle_t client, bool is_error) {
-    struct sling_message_display_flush *to_send = malloc(sizeof(struct sling_message_display_flush));
-    to_send->message_counter = msg_no++;
-    to_send->message_type = sling_message_display_type_flush | (is_error ? sling_message_display_type_error : 0);
-    to_send->starting_id = display_start_counter;
-    display_start_counter = to_send->message_counter;
-
-    size_t buf_len = sizeof(*to_send);
-    char *buf = malloc(buf_len);
-    memcpy(buf, to_send, buf_len);
-    send_raw(client, "display", buf, buf_len);
-    needs_flush = false;
-}
-
-void send_display(esp_mqtt_client_handle_t client, sinter_value_t *val, bool is_error, bool is_result) {
-    struct sling_message_display *payload = sling_sinter_value_to_message(val, NULL);
-    payload->message_counter = msg_no++;
-    if (is_result) {
-        payload->display_type = (is_error ? sling_message_display_type_error : sling_message_display_type_result)
-                                | sling_message_display_type_self_flushing;
-    } else {
-        if (!needs_flush) {
-            needs_flush = true;
-            display_start_counter = payload->message_counter;
-        }
-
-        if (is_error) { // i.e. is_error && !is_result
-            payload->display_type = sling_message_display_type_error;
-        } else { // normal output message
-            payload->display_type = sling_message_display_type_output;
-        }
-    }
-
-    size_t payload_len = sizeof(*payload);
-    size_t str_len = (val->type == sinter_type_string ? strlen(val->string_value) + 1 : 0);
-    char *buf = malloc(payload_len + str_len);
-    memcpy(buf, payload, payload_len);
-    if (val->type == sinter_type_string) {
-        memcpy(buf + payload_len, val->string_value, str_len - 1);
-    }
-
-    send_raw(client, "display", buf, payload_len + str_len);
-}
-
+// don't forget to free the returned char[]
 char *get_msg_type(char *topic, size_t size) {
-    char *buf = malloc(size + 1);
+    char *buf = malloc(size + 1); // free?
     strlcpy(buf, topic, size + 1);
 
     char *msg_type;
     msg_type = strtok(buf, "/"); // client id. TODO potentially unsafe? Try strtok_r?
     msg_type = strtok(NULL, "/");
+
     if (msg_type == NULL) {
-        return "";
+        return NULL;
     } else {
-        return msg_type;
+        char *ret = malloc(strlen(msg_type));
+        strcpy(ret, msg_type); // msg_type is null terminated
+        free(buf);
+        return ret;
     }
 }
 
-static esp_mqtt_client_handle_t mqtt_client;
+void run_sinter(unsigned char *binary, size_t size) {
+    size_t params_size = sizeof(struct sinter_run_params) + size;
+    struct sinter_run_params *params = malloc(params_size); // freed in sinter_task
+    params->buffer = mbuf;
+    params->code_size = size;
+    memcpy(params->code, binary, size);
 
-static void print_string(const char *s, bool is_error) {
-    sinter_value_t val = {.type = sinter_type_string, .string_value = s};
-    send_display(mqtt_client, &val, is_error, false);
-}
-
-static void print_integer(int32_t v, bool is_error) {
-    sinter_value_t val = {.type = sinter_type_integer, .integer_value = v};
-    send_display(mqtt_client, &val, is_error, false);
-}
-
-static void print_float(float v, bool is_error) {
-    sinter_value_t val = {.type = sinter_type_float, .float_value = v};
-    send_display(mqtt_client, &val, is_error, false);
-}
-
-static void print_flush(bool is_error) {
-  send_display_flush(mqtt_client, is_error);
-}
-
-sinter_fault_t run_sinter(esp_mqtt_client_handle_t client, const unsigned char *binary, const size_t binary_size) {
-    send_status(client, 1);
-    ESP_LOGI(TAG, "sent status running");
-
-    mqtt_client = client;
-
-    sinter_printer_float = print_float;
-    sinter_printer_string = print_string;
-    sinter_printer_integer = print_integer;
-    sinter_printer_flush = print_flush;
-
-    sinter_value_t result = {0};
-    sinter_fault_t fault = sinter_run(binary, binary_size, &result);
-
-    ESP_LOGI(TAG, "Program exited with fault %d and result type %d (%d, %d, %f)\n", fault, result.type, result.integer_value, result.boolean_value, result.float_value);
-
-    if (fault != sinter_fault_none) {
-        result.type = sinter_type_string;
-        result.string_value = fault_names[fault];
-    }
-
-    send_display(client, &result, fault != sinter_fault_none, true);
-    send_status(client, 0);
-    ESP_LOGI(TAG, "sent status idle");
-    return fault;
+    xTaskCreatePinnedToCore(sinter_task,
+        "sinter_task",
+        0x8000,
+        (void*)params,
+        2,
+        sinter_task_handle,
+        1);
 }
 
 static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
@@ -234,6 +161,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
                 esp_mqtt_client_subscribe(client, topic, 1);
 
                 ESP_LOGI(TAG, "subscribed to client topics");
+                free(topic);
 
                 send_hello(client);
                 ESP_LOGI(TAG, "sent hello message");
@@ -265,6 +193,10 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 
                 //printf("topic %s, len %d", event->topic, event->topic_len);
                 char *msg_type = get_msg_type(event->topic, event->topic_len);
+                if (msg_type == NULL) {
+                    ESP_LOGW(TAG, "couldn't get message type -- malformed topic?");
+                    break;
+                }
                 ESP_LOGI(TAG, "message type %s", msg_type);
                 size_t cmp_len = event->topic_len - strlen(CLIENT_ID) - 2; // for the slash and null terminator
                 if (strncmp(msg_type, "ping", cmp_len) == 0) {
@@ -286,8 +218,10 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
                     printf("\n");
 
                     ESP_LOGI(TAG, "starting to run...");
-                    run_sinter(client, binary, size);
+                    run_sinter(binary, size);
+                    free(binary);
                 }
+                free(msg_type);
             }
 
             break;
@@ -316,8 +250,47 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     mqtt_event_handler_cb(event_data);
 }
 
-void mqtt_app_start(void)
-{
+static void buffer_poll_loop(esp_mqtt_client_handle_t client) {
+    size_t buffer_size = 0x800;
+    char *buffer = malloc(buffer_size);
+    if (buffer == NULL) {
+        ESP_LOGE(TAG, "Error allocating mbuf buffer.");
+        return;
+    }
+
+    while (1) {
+        size_t recv_size = xMessageBufferReceive(mbuf, buffer, buffer_size, portMAX_DELAY);
+        // recv_size == 0 if timeout or msg size > buffer_size
+        // also skip if message is smaller than expected
+        if (recv_size == 0 || recv_size < sizeof(struct sling_message_display_flush)) {
+            // TODO figure out what to do if we get a message >2KiB...?
+            continue;
+        }
+
+        struct sling_message_display *to_send = (struct sling_message_display *) buffer;
+        to_send->message_counter = msg_no++;
+
+        if (to_send->display_type & sling_message_display_type_flush) {
+            struct sling_message_display_flush *to_send_flush = (struct sling_message_display_flush *) buffer;
+            to_send_flush->starting_id = display_start_counter;
+            display_start_counter = to_send_flush->message_counter;
+
+            needs_flush = false;
+        } else {
+            // if not a self-flushing message...
+            if ((to_send->display_type & sling_message_display_type_self_flushing) == 0) {
+                if (!needs_flush) {
+                    needs_flush = true;
+                    display_start_counter = to_send->message_counter;
+                }
+            }
+        }
+
+        send_raw(client, "display", buffer, recv_size);
+    }
+}
+
+void mqtt_app_start(void) {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("esp-tls", ESP_LOG_VERBOSE);
     esp_log_level_set("MQTT_CLIENT", ESP_LOG_VERBOSE);
@@ -338,5 +311,8 @@ void mqtt_app_start(void)
     ESP_LOGI(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, client);
+
+    mbuf = xMessageBufferCreate(0x4000);
     esp_mqtt_client_start(client);
+    buffer_poll_loop(client);
 }

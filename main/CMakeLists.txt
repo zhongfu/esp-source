@@ -4,6 +4,7 @@ idf_component_register(SRCS
                         "wifi/wifi.c"
                         "mqtt/mqtt.c"
                         "sling/sling_sinter.c"
+                        "sinter/sinter_task.c"
                     INCLUDE_DIRS "."
                     EMBED_TXTFILES
                         mqtt/mqtt_client_cert.pem mqtt/mqtt_client_key.pem mqtt/mqtt_server_cert.pem)

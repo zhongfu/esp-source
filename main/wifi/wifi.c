@@ -1,5 +1,4 @@
 #include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "freertos/event_groups.h"
 #include "esp_log.h"
 #include "esp_wifi.h"
@@ -8,7 +7,7 @@
 
 static const char *TAG = "wifi_task";
 
-void wifi_task (void *pvParams) {
+void wifi_task(void *pvParams) {
     s_wifi_event_group = xEventGroupCreate();
 
     ESP_ERROR_CHECK(esp_netif_init());
