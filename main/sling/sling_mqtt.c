@@ -28,19 +28,9 @@
 #include "../sinter/sinter_task.h"
 #include "../sling/sling_message.h"
 #include "../sling/sling_sinter.h"
+#include "../sling/sling.h"
 
 static const char *TAG = "mqtt";
-
-static const char *BROKER_URI = "mqtts://a2ymu7hue04vq7-ats.iot.ap-southeast-1.amazonaws.com:8883";
-static const char *CLIENT_ID = "stg-sling:9";
-
-// not sure why the *_end stuff is needed, but yolo
-extern const uint8_t mqtt_server_cert_pem_start[]   asm("_binary_mqtt_server_cert_pem_start");
-extern const uint8_t mqtt_server_cert_pem_end[]   asm("_binary_mqtt_server_cert_pem_end");
-extern const uint8_t mqtt_client_cert_pem_start[]   asm("_binary_mqtt_client_cert_pem_start");
-extern const uint8_t mqtt_client_cert_pem_end[]     asm("_binary_mqtt_client_cert_pem_end");
-extern const uint8_t mqtt_client_key_pem_start[]   asm("_binary_mqtt_client_key_pem_start");
-extern const uint8_t mqtt_client_key_pem_end[]     asm("_binary_mqtt_client_key_pem_end");
 
 static MessageBufferHandle_t mbuf;
 
@@ -49,6 +39,8 @@ static xTaskHandle sinter_task_handle;
 static uint32_t msg_no = 0;
 static uint32_t display_start_counter = 0;
 static bool needs_flush = false;
+
+struct sling_config *config;
 
 void uint32_to_char4(char buf[static 4], uint32_t val) {
     // little endian, big endian...
@@ -65,9 +57,9 @@ void uint16_to_char2(char buf[static 2], uint16_t val) {
 }
 
 void send_raw(esp_mqtt_client_handle_t client, char *msg_type, char *payload, size_t payload_size) {
-    size_t topic_sz = strlen(CLIENT_ID) + strlen(msg_type) + 2; // uhh, null terminator?
+    size_t topic_sz = strlen(config->client_id) + strlen(msg_type) + 2; // uhh, null terminator?
     char *topic = malloc(topic_sz);
-    snprintf(topic, topic_sz, "%s/%s", CLIENT_ID, msg_type);
+    snprintf(topic, topic_sz, "%s/%s", config->client_id, msg_type);
 
     printf("send_raw to %s:\n", topic);
     for (int i = 0; i < payload_size; i++) {
@@ -126,13 +118,18 @@ void run_sinter(unsigned char *binary, size_t size) {
     params->code_size = size;
     memcpy(params->code, binary, size);
 
-    xTaskCreatePinnedToCore(sinter_task,
+    BaseType_t result = xTaskCreatePinnedToCore(sinter_task,
         "sinter_task",
         0x8000,
         (void*)params,
         2,
         sinter_task_handle,
         1);
+    
+    if (result != pdPASS) {
+        ESP_LOGE(TAG, "Failed to start sinter_task with result %d. Out of heap space?", result);
+        ESP_LOGE(TAG, "Free heap size: %d, min free heap size since boot: %d", xPortGetFreeHeapSize(), xPortGetMinimumEverFreeHeapSize());
+    }
 }
 
 static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
@@ -145,19 +142,19 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
             msg_no = 0;
 
             {
-                size_t topic_sz = strlen(CLIENT_ID) + 16;
+                size_t topic_sz = strlen(config->client_id) + 16;
                 char *topic = malloc(topic_sz);
 
-                snprintf(topic, topic_sz, "%s/run", CLIENT_ID);
+                snprintf(topic, topic_sz, "%s/run", config->client_id);
                 esp_mqtt_client_subscribe(client, topic, 1);
 
-                snprintf(topic, topic_sz, "%s/stop", CLIENT_ID);
+                snprintf(topic, topic_sz, "%s/stop", config->client_id);
                 esp_mqtt_client_subscribe(client, topic, 1);
 
-                snprintf(topic, topic_sz, "%s/ping", CLIENT_ID);
+                snprintf(topic, topic_sz, "%s/ping", config->client_id);
                 esp_mqtt_client_subscribe(client, topic, 1);
 
-                snprintf(topic, topic_sz, "%s/input", CLIENT_ID);
+                snprintf(topic, topic_sz, "%s/input", config->client_id);
                 esp_mqtt_client_subscribe(client, topic, 1);
 
                 ESP_LOGI(TAG, "subscribed to client topics");
@@ -198,7 +195,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
                     break;
                 }
                 ESP_LOGI(TAG, "message type %s", msg_type);
-                size_t cmp_len = event->topic_len - strlen(CLIENT_ID) - 2; // for the slash and null terminator
+                size_t cmp_len = event->topic_len - strlen(config->client_id) - 2; // for the slash and null terminator
                 if (strncmp(msg_type, "ping", cmp_len) == 0) {
                     ESP_LOGI(TAG, "got ping");
 
@@ -220,8 +217,19 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
                     ESP_LOGI(TAG, "starting to run...");
                     run_sinter(binary, size);
                     free(binary);
+                } else if (strncmp(msg_type, "stop", cmp_len) == 0) {
+                    ESP_LOGI(TAG, "stopping sinter task...");
+                    if (sinter_task_handle != NULL) { // don't accidentally kill the sling task
+                        vTaskDelete(sinter_task_handle);
+                    } else {
+                        ESP_LOGW(TAG, "sinter task handle invalid -- already stopped?");
+                    }
+                    send_status(client, 0);
                 }
                 free(msg_type);
+
+                // TODO remove
+                ESP_LOGI(TAG, "high water mark: %d", uxTaskGetStackHighWaterMark(NULL));
             }
 
             break;
@@ -290,7 +298,9 @@ static void buffer_poll_loop(esp_mqtt_client_handle_t client) {
     }
 }
 
-void mqtt_app_start(void) {
+void sling_mqtt_start(struct sling_config *conf) {
+    config = conf;
+
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("esp-tls", ESP_LOG_VERBOSE);
     esp_log_level_set("MQTT_CLIENT", ESP_LOG_VERBOSE);
@@ -301,11 +311,12 @@ void mqtt_app_start(void) {
     esp_log_level_set("OUTBOX", ESP_LOG_VERBOSE);
 
     const esp_mqtt_client_config_t mqtt_cfg = {
-        .uri = BROKER_URI,
-        .cert_pem = (const char *) mqtt_server_cert_pem_start,
-        .client_cert_pem = (const char *) mqtt_client_cert_pem_start,
-        .client_key_pem = (const char *) mqtt_client_key_pem_start,
-        .client_id = CLIENT_ID,
+        .uri = config->broker_uri,
+        .cert_pem = config->server_cert_ptr,
+        .client_cert_pem = config->client_cert,
+        .client_key_pem = config->client_key,
+        .client_id = config->client_id,
+        .buffer_size = 4096,
     };
 
     ESP_LOGI(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());

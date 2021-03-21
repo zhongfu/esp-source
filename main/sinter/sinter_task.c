@@ -128,5 +128,6 @@ void sinter_task(void *pvParams) {
     send_val(&result, fault != sinter_fault_none, true);
 
     free(params);
+    ESP_LOGI(TAG, "task high water mark: %d", uxTaskGetStackHighWaterMark(NULL));
     vTaskDelete(NULL);
 }

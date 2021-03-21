@@ -2,12 +2,14 @@ idf_component_register(SRCS
                         "main.c"
                         "wifi/connect.c"
                         "wifi/wifi.c"
-                        "mqtt/mqtt.c"
+                        "sling/sling_mqtt.c"
+                        "sling/sling_setup.c"
+                        "sling/sling.c"
                         "sling/sling_sinter.c"
                         "sinter/sinter_task.c"
                     INCLUDE_DIRS "."
                     EMBED_TXTFILES
-                        mqtt/mqtt_client_cert.pem mqtt/mqtt_client_key.pem mqtt/mqtt_server_cert.pem)
+			sling/verisign-pca3-g5.crt sling/sfs-root-g2.crt)
 
 # Build static library, do not build test executables
 option(BUILD_SHARED_LIBS OFF)

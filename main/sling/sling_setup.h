@@ -1,0 +1,1 @@
+struct sling_config *sling_init();

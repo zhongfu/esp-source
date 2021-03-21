@@ -12,19 +12,12 @@
 #include "wifi/wifi.h"
 #include "wifi/connect.h"
 
-#include "mqtt/mqtt.h"
+#include "sling/sling.h"
 
 static const char *TAG = "main";
 
 static TaskHandle_t s_wifi_task_handle;
-
-static _Noreturn void app_exit(void) {
-  fflush(stdout);
-  esp_restart();
-  while (1) {
-    (void)0;
-  }
-}
+static TaskHandle_t s_sling_task_handle;
 
 void app_main(void) {
   uart_driver_install(CONFIG_ESP_CONSOLE_UART_NUM, 256, 0, 0, NULL, 0);
@@ -46,7 +39,9 @@ void app_main(void) {
   ESP_LOGI(TAG, "esp-source starting...");
   ESP_LOGI(TAG, "Starting WiFi task...");
 
-  xTaskCreatePinnedToCore(&wifi_task,
+  BaseType_t result;
+
+  result = xTaskCreatePinnedToCore(&wifi_task,
                       "wifi_task",
                       10000, // TODO check out uxTaskGetStackHighWaterMark()
                       NULL,
@@ -54,18 +49,35 @@ void app_main(void) {
                       &s_wifi_task_handle,
                       0);
 
+  if (result != pdPASS) {
+    ESP_LOGE(TAG, "Failed to start wifi_task with result %d. Out of heap space?", result);
+    ESP_LOGE(TAG, "Free heap size: %d, min free heap size since boot: %d", xPortGetFreeHeapSize(), xPortGetMinimumEverFreeHeapSize());
+  }
+
   while (s_wifi_event_group == NULL) {
     ESP_LOGE(TAG, "WiFi event group not created yet, this should never happen! Sleeping 1s...");
     sleep(1);
   }
 
   // wait until connected, then start mqtt task
-  EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
+  xEventGroupWaitBits(s_wifi_event_group,
                     WIFI_CONNECTED_BIT,
                     pdFALSE,
                     pdFALSE,
                     portMAX_DELAY);
 
   ESP_LOGI(TAG, "WiFi connected, starting MQTT task...");
-  mqtt_app_start();
+  
+  result = xTaskCreatePinnedToCore(&sling_task,
+                      "sling_task",
+                      5760, // high water mark 3160 with stack size 10000
+                      NULL,
+                      2,
+                      &s_sling_task_handle,
+                      0);
+
+  if (result != pdPASS) {
+    ESP_LOGE(TAG, "Failed to start sling_task with result %d. Out of heap space?", result);
+    ESP_LOGE(TAG, "Free heap size: %d, min free heap size since boot: %d", xPortGetFreeHeapSize(), xPortGetMinimumEverFreeHeapSize());
+  }
 }
