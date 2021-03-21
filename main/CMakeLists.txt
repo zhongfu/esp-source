@@ -7,6 +7,8 @@ idf_component_register(SRCS
                         "sling/sling.c"
                         "sling/sling_sinter.c"
                         "sinter/sinter_task.c"
+                        "ble/ble.c"
+                        "ble/ble_gatt_svr.c"
                     INCLUDE_DIRS "."
                     EMBED_TXTFILES
 			sling/verisign-pca3-g5.crt sling/sfs-root-g2.crt)
