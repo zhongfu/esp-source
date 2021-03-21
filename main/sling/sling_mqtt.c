@@ -227,9 +227,6 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
                     send_status(client, 0);
                 }
                 free(msg_type);
-
-                // TODO remove
-                ESP_LOGI(TAG, "high water mark: %d", uxTaskGetStackHighWaterMark(NULL));
             }
 
             break;
