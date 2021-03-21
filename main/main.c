@@ -37,10 +37,10 @@ void app_main(void) {
   ESP_ERROR_CHECK(esp_event_loop_create_default());
 
   ESP_LOGI(TAG, "esp-source starting...");
-  ESP_LOGI(TAG, "Starting WiFi task...");
 
   BaseType_t result;
 
+  ESP_LOGI(TAG, "Starting WiFi task...");
   result = xTaskCreatePinnedToCore(&wifi_task,
                       "wifi_task",
                       10000, // TODO check out uxTaskGetStackHighWaterMark()
@@ -67,7 +67,6 @@ void app_main(void) {
                     portMAX_DELAY);
 
   ESP_LOGI(TAG, "WiFi connected, starting MQTT task...");
-  
   result = xTaskCreatePinnedToCore(&sling_task,
                       "sling_task",
                       5760, // high water mark 3160 with stack size 10000

@@ -1,0 +1,11 @@
+#Name,		Type,	SubType,	Offset,		Size,					Flags
+nvs,		data,	nvs,		0x9000,		24K,
+otadata,	data,	ota,		,		8K,
+phy_init,	data,	phy,		,		4K,
+certs,		data,	spiffs,		,		64K,
+fact_cfg,	data,	spiffs,		,		32K,
+user_cfg,	data,	spiffs,		,		32K,
+storage,	data,	spiffs,		,		64K,
+#factory,	app,	factory,	0x100000,	1M, # removed cuz we need more space lol
+ota_0,		app,	ota_0,		0x100000,	1536K,
+ota_1,		app,	ota_1,		,		1536K,
