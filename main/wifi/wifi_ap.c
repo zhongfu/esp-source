@@ -24,7 +24,7 @@ static const char *html_root_header = "<h1>welcome to esp-source</h1>";
 static const char *html_root_secret_f = "<p>Secret: <input disabled value=\"%s\"></p><br>";
 static const char *html_root_form_pt1 = "<form action=\"/set\" method=\"post\"><p><label>SSID: </label><input name=\"ssid\"></p><p><label>Auth type: </label><select name=\"authmode\" onchange=\"var id_p = document.getElementById('id_p').style; var pw_p = document.getElementById('pw_p').style; var val_p = document.getElementById('val_p').style; if (this.selectedIndex == 2) { val_p.display = 'table-row'; id_p.display = 'table-row'; } else { val_p.display = 'none'; id_p.display = 'none'; }; if (this.selectedIndex == 0) pw_p.display = 'none'; else pw_p.display = 'table-row';\">";
 static const char *html_root_form_authmode_f = "<option value=\"%d\">Open</option><option value=\"%d\">WPA2-PSK</option><option value=\"%d\">WPA2-Enterprise</option>";
-static const char *html_root_form_pt3 = "</select></p><p id=\"val_p\" style=\"display: none;\"><label>Validate CA: </label><input type=\"checkbox\" name=\"validate\"></p><p id=\"id_p\" style=\"display: none;\"><label>Identity: </label><input name=\"identity\"></p><p id=\"pw_p\" style=\"display: none;\"><label>Password: </label><input name=\"password\"></p><p><input type=\"submit\"></p></form>";
+static const char *html_root_form_pt3 = "</select></p><p id=\"val_p\" style=\"display: none;\"><label>Validate CA: </label><input type=\"checkbox\" name=\"validate\" checked></p><p id=\"id_p\" style=\"display: none;\"><label>Identity: </label><input name=\"identity\"></p><p id=\"pw_p\" style=\"display: none;\"><label>Password: </label><input name=\"password\"></p><p><input type=\"submit\"></p></form>";
 static const char *html_footer = "</body></html>";
  
 static httpd_handle_t httpServerInstance = NULL;
@@ -72,6 +72,7 @@ static esp_err_t handler_post_root(httpd_req_t *req) {
     wifi_auth_mode_t authmode = WIFI_AUTH_WPA2_PSK;
     char identity[64] = {0};
     char password[64] = {0};
+    bool validate = true;
 
     if (httpd_query_key_value(buffer, "ssid", ssid, 32) == ESP_ERR_NOT_FOUND) {
         httpd_resp_set_status(req, "400");
@@ -109,7 +110,10 @@ static esp_err_t handler_post_root(httpd_req_t *req) {
                 httpd_resp_send(req, "Identity required", HTTPD_RESP_USE_STRLEN);
                 ESP_LOGW(TAG, "Identity not received in request");
                 return ESP_OK;
-            }   
+            }
+
+            char validate_s[8] = {0}; // idk
+            validate = (httpd_query_key_value(buffer, "validate", validate_s, 8) != ESP_ERR_NOT_FOUND); // if not found, then checkbox not checked... probably
         }
     }
 
@@ -121,7 +125,7 @@ static esp_err_t handler_post_root(httpd_req_t *req) {
         return ESP_OK;
     }
 
-    ESP_LOGI(TAG, "New WiFi STA config! SSID: %s; Authmode: %d; Identity: %s; Password: %s", ssid, authmode, identity, password);
+    ESP_LOGI(TAG, "New WiFi STA config! SSID: %s; Authmode: %d; Validate: %s; Identity: %s; Password: %s", ssid, authmode, validate ? "yes" : "no", identity, password);
     httpd_resp_send(req, "Set successfully! :)", HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
 }
@@ -143,12 +147,12 @@ static void startHttpServer(void){
     }
 }
  
-static void stopHttpServer(void){
-    if (httpServerInstance != NULL) {
-        ESP_LOGI(TAG, "Stopping httpd");
-        ESP_ERROR_CHECK(httpd_stop(httpServerInstance));
-    }
-}
+// static void stopHttpServer(void){
+//     if (httpServerInstance != NULL) {
+//         ESP_LOGI(TAG, "Stopping httpd");
+//         ESP_ERROR_CHECK(httpd_stop(httpServerInstance));
+//     }
+// }
 
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                                     int32_t event_id, void* event_data) {
