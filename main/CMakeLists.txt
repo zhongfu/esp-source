@@ -1,7 +1,10 @@
 idf_component_register(SRCS
                         "main.c"
-                        "wifi/connect.c"
                         "wifi/wifi.c"
+                        "wifi/wifi_sta.c"
+                        "wifi/wifi_config.c"
+                        "wifi/wifi_ap.c"
+                        "storage/spiffs.c"
                         "sling/sling_mqtt.c"
                         "sling/sling_setup.c"
                         "sling/sling.c"
@@ -9,7 +12,8 @@ idf_component_register(SRCS
                         "sinter/sinter_task.c"
                     INCLUDE_DIRS "."
                     EMBED_TXTFILES
-			sling/verisign-pca3-g5.crt sling/sfs-root-g2.crt)
+			sling/verisign-pca3-g5.crt sling/sfs-root-g2.crt
+			wifi/digicert-global.crt)
 
 # Build static library, do not build test executables
 option(BUILD_SHARED_LIBS OFF)

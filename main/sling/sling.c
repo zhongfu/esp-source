@@ -9,7 +9,7 @@
 #include "sling_setup.h"
 #include "sling_mqtt.h"
 
-const char *TAG = "sling";
+//static const char *TAG = "sling";
 
 void sling_task(void *pvParams) {
     struct sling_config *config = sling_init();

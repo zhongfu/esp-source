@@ -1,0 +1,1 @@
+- digicert-global.crt: for nus wifi auth01.nw.nus.edu.sg

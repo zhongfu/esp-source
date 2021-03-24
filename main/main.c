@@ -10,7 +10,8 @@
 #include "freertos/event_groups.h"
 
 #include "wifi/wifi.h"
-#include "wifi/connect.h"
+#include "wifi/wifi_sta.h"
+#include "storage/spiffs.h"
 
 #include "sling/sling.h"
 
@@ -34,6 +35,8 @@ void app_main(void) {
   }
   ESP_ERROR_CHECK(ret);
 
+  ESP_ERROR_CHECK(spiffs_init());
+
   ESP_ERROR_CHECK(esp_event_loop_create_default());
 
   ESP_LOGI(TAG, "esp-source starting...");
@@ -54,13 +57,13 @@ void app_main(void) {
     ESP_LOGE(TAG, "Free heap size: %d, min free heap size since boot: %d", xPortGetFreeHeapSize(), xPortGetMinimumEverFreeHeapSize());
   }
 
-  while (s_wifi_event_group == NULL) {
+  while (wifi_event_group == NULL) {
     ESP_LOGE(TAG, "WiFi event group not created yet, this should never happen! Sleeping 1s...");
     sleep(1);
   }
 
   // wait until connected, then start mqtt task
-  xEventGroupWaitBits(s_wifi_event_group,
+  xEventGroupWaitBits(wifi_event_group,
                     WIFI_CONNECTED_BIT,
                     pdFALSE,
                     pdFALSE,

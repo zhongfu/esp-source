@@ -42,7 +42,7 @@ static bool needs_flush = false;
 
 struct sling_config *config;
 
-void uint32_to_char4(char buf[static 4], uint32_t val) {
+static void uint32_to_char4(char buf[static 4], uint32_t val) {
     // little endian, big endian...
     buf[0] = (val >> 24) & 0xFF;
     buf[1] = (val >> 16) & 0xFF;
@@ -50,13 +50,13 @@ void uint32_to_char4(char buf[static 4], uint32_t val) {
     buf[3] = val & 0xFF;
 }
 
-void uint16_to_char2(char buf[static 2], uint16_t val) {
-    // little endian, big endian...
-    buf[0] = (val >> 8) & 0xFF;
-    buf[1] = val & 0xFF;
-}
+// static void uint16_to_char2(char buf[static 2], uint16_t val) {
+//     // little endian, big endian...
+//     buf[0] = (val >> 8) & 0xFF;
+//     buf[1] = val & 0xFF;
+// }
 
-void send_raw(esp_mqtt_client_handle_t client, char *msg_type, char *payload, size_t payload_size) {
+static void send_raw(esp_mqtt_client_handle_t client, char *msg_type, char *payload, size_t payload_size) {
     size_t topic_sz = strlen(config->client_id) + strlen(msg_type) + 2; // uhh, null terminator?
     char *topic = malloc(topic_sz);
     snprintf(topic, topic_sz, "%s/%s", config->client_id, msg_type);
@@ -71,7 +71,7 @@ void send_raw(esp_mqtt_client_handle_t client, char *msg_type, char *payload, si
     free(topic);
 }
 
-void send_hello(esp_mqtt_client_handle_t client) {
+static void send_hello(esp_mqtt_client_handle_t client) {
     char buf[8];
     uint32_to_char4(buf, msg_no++);
     uint32_to_char4(buf+4, esp_random());
@@ -79,7 +79,7 @@ void send_hello(esp_mqtt_client_handle_t client) {
     send_raw(client, "hello", buf, 8);
 }
 
-void send_status(esp_mqtt_client_handle_t client, uint16_t status) {
+static void send_status(esp_mqtt_client_handle_t client, uint16_t status) {
     struct sling_message_status *to_send = malloc(sizeof(struct sling_message_status));
     to_send->message_counter = msg_no++;
     to_send->status = status;
@@ -93,7 +93,7 @@ void send_status(esp_mqtt_client_handle_t client, uint16_t status) {
 }
 
 // don't forget to free the returned char[]
-char *get_msg_type(char *topic, size_t size) {
+static char *get_msg_type(char *topic, size_t size) {
     char *buf = malloc(size + 1); // free?
     strlcpy(buf, topic, size + 1);
 
@@ -111,7 +111,7 @@ char *get_msg_type(char *topic, size_t size) {
     }
 }
 
-void run_sinter(unsigned char *binary, size_t size) {
+static void run_sinter(unsigned char *binary, size_t size) {
     size_t params_size = sizeof(struct sinter_run_params) + size;
     struct sinter_run_params *params = malloc(params_size); // freed in sinter_task
     params->buffer = mbuf;
@@ -202,7 +202,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
                     send_status(client, 0);
                     ESP_LOGI(TAG, "sent status");
                 } else if (strncmp(msg_type, "run", cmp_len) == 0) {
-                    ESP_LOGI(TAG, "got run");
+                    ESP_LOGI(TAG, "got run"); // TODO check status before running
 
                     size_t size = event->data_len - 4;
                     printf("data length is %d\n", size);

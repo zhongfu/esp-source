@@ -1,6 +1,3 @@
-/**
- * esp-idf wifi STA example
- */
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -14,13 +11,10 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 
-// TODO move config elsewhere
-#define EXAMPLE_ESP_WIFI_SSID      "enchilada"
-#define EXAMPLE_ESP_WIFI_PASS      "pommedefruit"
-#define EXAMPLE_ESP_MAXIMUM_RETRY  5
+#include "wifi.h"
 
-// FreeRTOS event group to signal when we are connected
-EventGroupHandle_t s_wifi_event_group;
+// TODO move config elsewhere
+#define EXAMPLE_ESP_MAXIMUM_RETRY  10
 
 static esp_event_handler_instance_t s_wifi_instance_any_id;
 static esp_event_handler_instance_t s_wifi_instance_got_ip;
@@ -33,8 +27,8 @@ static const char *TAG = "wifi_sta";
 static int s_retry_num = 0;
 
 static void evgrp_set_bits(EventBits_t bits) {
-    if (s_wifi_event_group != NULL) {
-        xEventGroupSetBits(s_wifi_event_group, bits);
+    if (wifi_event_group != NULL) {
+        xEventGroupSetBits(wifi_event_group, bits);
     } else {
         ESP_LOGI(TAG, "Event group is NULL, not setting bits");
     }
@@ -72,14 +66,11 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
 /**
  * @brief Inits and starts connecting to WiFi.
  * 
- * Make sure to create an event group and assign it to `s_wifi_event_group` if
+ * Make sure to create an event group and assign it to `wifi_event_group` if
  * you want to know the status of the connection.
  */
 void connect_wifi() {
     ESP_LOGI(TAG, "Init WiFi...");
-
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
                                                         ESP_EVENT_ANY_ID,
@@ -91,25 +82,6 @@ void connect_wifi() {
                                                         &event_handler,
                                                         NULL,
                                                         &s_wifi_instance_got_ip));
-
-    wifi_config_t wifi_config = {
-        .sta = {
-            .ssid = EXAMPLE_ESP_WIFI_SSID,
-            .password = EXAMPLE_ESP_WIFI_PASS,
-            /* Setting a password implies station will connect to all security modes including WEP/WPA.
-             * However these modes are deprecated and not advisable to be used. Incase your Access point
-             * doesn't support WPA2, these mode can be enabled by commenting below line */
-	     .threshold.authmode = WIFI_AUTH_WPA2_PSK,
-
-            .pmf_cfg = {
-                .capable = true,
-                .required = false
-            },
-        },
-    };
-
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
 
     ESP_LOGI(TAG, "WiFi init finished, starting connect...");
     ESP_ERROR_CHECK(esp_wifi_start());

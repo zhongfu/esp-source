@@ -26,7 +26,7 @@ extern const uint8_t verisign_pca3_g5_crt_start[]   asm("_binary_verisign_pca3_g
 extern const uint8_t verisign_pca3_g5_crt_end[]     asm("_binary_verisign_pca3_g5_crt_end");
 
 // handle must already be opened
-esp_err_t gen_secret(nvs_handle_t handle, char *uuid) {
+static esp_err_t gen_secret(nvs_handle_t handle, char *uuid) {
     esp_err_t err;
 
     UUIDGen(uuid);
@@ -49,6 +49,7 @@ void sling_get_secret(char *uuid) {
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Got error %s while opening NVS namespace", esp_err_to_name(err));
         uuid = NULL;
+        nvs_close(nvs_handle);
         return;
     }
 
@@ -59,16 +60,18 @@ void sling_get_secret(char *uuid) {
 
         if (err != ESP_OK) {
             uuid = NULL;
+            nvs_close(nvs_handle);
             return;
         }
     } else if (err != ESP_OK) {
         ESP_LOGE(TAG, "Got error %s while retrieving Sling secret from NVS", esp_err_to_name(err));
         uuid = NULL;
+        nvs_close(nvs_handle);
         return;
     }
 }
 
-esp_err_t _http_event_handler(esp_http_client_event_t *evt)
+static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 {
     static int output_len;       // Stores number of bytes read
     switch(evt->event_id) {
@@ -121,7 +124,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
-void sling_http_get(esp_http_client_handle_t client, char *secret, char *endpoint) {
+static void sling_http_get(esp_http_client_handle_t client, char *secret, char *endpoint) {
     // /v1/devices/{secret}/{endpoint}
     // 13 + 36 (secret) + strlen(endpoint) + 1 (null)
     size_t path_len = 13 + 36 + strlen(endpoint) + 1;
