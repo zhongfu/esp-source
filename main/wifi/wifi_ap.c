@@ -13,6 +13,7 @@
 
 #include "../sling/sling_setup.h"
 #include "wifi_config.h"
+#include "urldecode.h"
  
 #define SERVER_PORT 80
 
@@ -66,6 +67,7 @@ static esp_err_t handler_post_root(httpd_req_t *req) {
     ESP_LOGI(TAG, "Got request to /set");
     char buffer[256] = {0};
     httpd_req_recv(req, buffer, 256);
+    char temp[128] = {0};
 
     char ssid[32] = {0};
     char authmode_c[8] = {0};
@@ -74,12 +76,13 @@ static esp_err_t handler_post_root(httpd_req_t *req) {
     char password[64] = {0};
     bool validate = true;
 
-    if (httpd_query_key_value(buffer, "ssid", ssid, 32) == ESP_ERR_NOT_FOUND) {
+    if (httpd_query_key_value(buffer, "ssid", temp, 32) == ESP_ERR_NOT_FOUND) {
         httpd_resp_set_status(req, "400");
         httpd_resp_send(req, "SSID required", HTTPD_RESP_USE_STRLEN);
         ESP_LOGW(TAG, "SSID not received in request");
         return ESP_OK;
     }
+    urlDecode(ssid, temp);
 
     if (httpd_query_key_value(buffer, "authmode", authmode_c, 8) == ESP_ERR_NOT_FOUND) {
         httpd_resp_set_status(req, "400");
@@ -97,20 +100,22 @@ static esp_err_t handler_post_root(httpd_req_t *req) {
     }
 
     if (authmode != WIFI_AUTH_OPEN) {
-        if (httpd_query_key_value(buffer, "password", password, 64) == ESP_ERR_NOT_FOUND) {
+        if (httpd_query_key_value(buffer, "password", temp, 64) == ESP_ERR_NOT_FOUND) {
             httpd_resp_set_status(req, "400");
             httpd_resp_send(req, "Password required", HTTPD_RESP_USE_STRLEN);
             ESP_LOGW(TAG, "Password not received in request");
             return ESP_OK;
         }
+        urlDecode(password, temp);
 
         if (authmode == WIFI_AUTH_WPA2_ENTERPRISE) {
-            if (httpd_query_key_value(buffer, "identity", identity, 64) == ESP_ERR_NOT_FOUND) {
+            if (httpd_query_key_value(buffer, "identity", temp, 64) == ESP_ERR_NOT_FOUND) {
                 httpd_resp_set_status(req, "400");
                 httpd_resp_send(req, "Identity required", HTTPD_RESP_USE_STRLEN);
                 ESP_LOGW(TAG, "Identity not received in request");
                 return ESP_OK;
             }
+            urlDecode(identity, temp);
 
             char validate_s[8] = {0}; // idk
             validate = (httpd_query_key_value(buffer, "validate", validate_s, 8) != ESP_ERR_NOT_FOUND); // if not found, then checkbox not checked... probably
