@@ -117,7 +117,7 @@ static esp_err_t handler_post_root(httpd_req_t *req) {
         }
     }
 
-    int ret = wifi_update_config(ssid, authmode, true, NULL, identity, password);
+    int ret = wifi_update_config(ssid, authmode, validate, NULL, identity, password);
     if (ret != 0) {
         httpd_resp_set_status(req, "500");
         httpd_resp_send(req, "Error setting config: %d", ret);

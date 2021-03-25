@@ -55,10 +55,9 @@ void wifi_task(void *pvParams) {
             // we're good!
             ESP_LOGI(TAG, "WiFi is up!");
         } else if (bits & WIFI_FAIL_BIT) {
-            // start AP mode for configuration, I guess
             ESP_LOGW(TAG, "WiFi connection failed :(");
-            // TODO AP mode
-            continue; // retry... for now
+            ESP_LOGW(TAG, "Starting AP mode...");
+            wifi_ap_start();
         } else {
             ESP_LOGE(TAG, "Got a weird WiFi event group bit, this should never happen");
         }
@@ -70,8 +69,5 @@ void wifi_task(void *pvParams) {
                         pdFALSE,
                         pdFALSE,
                         portMAX_DELAY);
-        
-        // load config again, in case we're doing 802.1x
-        wifi_load_config();
     }
 }

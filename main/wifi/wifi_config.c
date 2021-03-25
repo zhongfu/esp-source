@@ -229,6 +229,7 @@ int wifi_load_config() {
             return 1;
         }
 
+        ESP_LOGI(TAG, "Connecting to WiFi with ssid: %s; authmode: %d; password: %s", conf.sta.ssid, authmode, password);
         esp_wifi_set_config(WIFI_IF_STA, &conf);
     } else { // 802.1x/wpa2 enterprise
         esp_wifi_set_config(WIFI_IF_STA, &conf);
@@ -270,6 +271,8 @@ int wifi_load_config() {
         esp_wifi_sta_wpa2_ent_set_password((uint8_t *) password, 64);
 
         esp_wifi_sta_wpa2_ent_enable();
+
+        ESP_LOGI(TAG, "Connecting to WiFi with ssid: %s; authmode: %d; validate: %d; identity: %s; password: %s", conf.sta.ssid, authmode, validate_ca_int, identity, password);
     }
 
     nvs_close(nvs_handle);
