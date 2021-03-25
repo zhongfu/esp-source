@@ -103,12 +103,6 @@ void sinter_task(void *pvParams) {
         mbuf = params->buffer;
     }
 
-    printf("received program, size %d:\n", params->code_size);
-    for (int i = 0; i < params->code_size; i++) {
-        printf("%02x ", *(params->code+i));
-    }
-    printf("\n");
-
     sinter_printer_float = print_float;
     sinter_printer_string = print_string;
     sinter_printer_integer = print_integer;

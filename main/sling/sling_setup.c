@@ -204,8 +204,6 @@ struct sling_config *sling_init() {
 
     ESP_LOGI(TAG, "Broker URI: %s", sling_conf->broker_uri);
     ESP_LOGI(TAG, "Client ID: %s", sling_conf->client_id);
-    ESP_LOGI(TAG, "Client cert: %s", sling_conf->client_cert);
-    ESP_LOGI(TAG, "Client key: %s", sling_conf->client_key);
 
     return sling_conf;
 }

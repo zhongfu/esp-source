@@ -1,12 +1,3 @@
-/* MQTT over SSL Example
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
-
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -61,11 +52,15 @@ static void send_raw(esp_mqtt_client_handle_t client, char *msg_type, char *payl
     char *topic = malloc(topic_sz);
     snprintf(topic, topic_sz, "%s/%s", config->client_id, msg_type);
 
+    ESP_LOGI("Sending message to topic %s", topic);
+
+    #ifdef SLING_MQTT_DEBUG
     printf("send_raw to %s:\n", topic);
     for (int i = 0; i < payload_size; i++) {
         printf("%02x ", *(payload+i));
     }
     printf("\n");
+    #endif
 
     esp_mqtt_client_publish(client, topic, payload, payload_size, 1, 0);
     free(topic);
@@ -111,7 +106,7 @@ static char *get_msg_type(char *topic, size_t size) {
     }
 }
 
-static void run_sinter(unsigned char *binary, size_t size) {
+static int run_sinter(unsigned char *binary, size_t size) {
     size_t params_size = sizeof(struct sinter_run_params) + size;
     struct sinter_run_params *params = malloc(params_size); // freed in sinter_task
     params->buffer = mbuf;
@@ -129,7 +124,10 @@ static void run_sinter(unsigned char *binary, size_t size) {
     if (result != pdPASS) {
         ESP_LOGE(TAG, "Failed to start sinter_task with result %d. Out of heap space?", result);
         ESP_LOGE(TAG, "Free heap size: %d, min free heap size since boot: %d", xPortGetFreeHeapSize(), xPortGetMinimumEverFreeHeapSize());
+        return 1;
     }
+    
+    return 0;
 }
 
 static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
@@ -183,10 +181,8 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
             break;
 
         case MQTT_EVENT_DATA:
-            ESP_LOGI(TAG, "MQTT_EVENT_DATA");
-
             {
-                printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
+                ESP_LOGI(TAG, "Got message from topic %.*s\r\n", event->topic_len, event->topic);
 
                 //printf("topic %s, len %d", event->topic, event->topic_len);
                 char *msg_type = get_msg_type(event->topic, event->topic_len);
@@ -194,28 +190,32 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
                     ESP_LOGW(TAG, "couldn't get message type -- malformed topic?");
                     break;
                 }
-                ESP_LOGI(TAG, "message type %s", msg_type);
                 size_t cmp_len = event->topic_len - strlen(config->client_id) - 2; // for the slash and null terminator
                 if (strncmp(msg_type, "ping", cmp_len) == 0) {
                     ESP_LOGI(TAG, "got ping");
 
-                    send_status(client, 0);
+                    send_status(client, sling_message_status_type_idle);
                     ESP_LOGI(TAG, "sent status");
                 } else if (strncmp(msg_type, "run", cmp_len) == 0) {
                     ESP_LOGI(TAG, "got run"); // TODO check status before running
 
                     size_t size = event->data_len - 4;
-                    printf("data length is %d\n", size);
                     unsigned char *binary = malloc(size);
                     memcpy(binary, event->data + 4, size);
+
+                    #ifdef SLING_MQTT_DEBUG
                     printf("received program:\n");
                     for (int i = 0; i < size; i++) {
                         printf("%02x ", *(binary+i));
                     }
                     printf("\n");
+                    #endif
 
                     ESP_LOGI(TAG, "starting to run...");
-                    run_sinter(binary, size);
+                    send_status(client, sling_message_status_type_running);
+                    if (run_sinter(binary, size) != 0) { // error starting
+                        send_status(client, sling_message_status_type_idle);
+                    }
                     free(binary);
                 } else if (strncmp(msg_type, "stop", cmp_len) == 0) {
                     ESP_LOGI(TAG, "stopping sinter task...");
@@ -224,7 +224,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
                     } else {
                         ESP_LOGW(TAG, "sinter task handle invalid -- already stopped?");
                     }
-                    send_status(client, 0);
+                    send_status(client, sling_message_status_type_idle);
                 }
                 free(msg_type);
             }

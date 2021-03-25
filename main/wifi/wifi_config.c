@@ -229,7 +229,7 @@ int wifi_load_config() {
             return 1;
         }
 
-        ESP_LOGI(TAG, "Connecting to WiFi with ssid: %s; authmode: %d; password: %s", conf.sta.ssid, authmode, password);
+        ESP_LOGI(TAG, "Connecting to WiFi with ssid: %s; authmode: %d", conf.sta.ssid, authmode);
         esp_wifi_set_config(WIFI_IF_STA, &conf);
     } else { // 802.1x/wpa2 enterprise
         esp_wifi_set_config(WIFI_IF_STA, &conf);
@@ -248,9 +248,9 @@ int wifi_load_config() {
 
             int res = spiffs_read("certs", "wifi_8021x_ca_cert.pem", cacert, &cacert_len);
             if (res == 1) { // not found
-                esp_wifi_sta_wpa2_ent_set_ca_cert((const unsigned char *) digicert_global_crt_start, strlen((const char *) digicert_global_crt_start));
+                ESP_ERROR_CHECK(esp_wifi_sta_wpa2_ent_set_ca_cert((const unsigned char *) digicert_global_crt_start, strlen((const char *) digicert_global_crt_start)));
             } else if (res == 0) { // found!!
-                esp_wifi_sta_wpa2_ent_set_ca_cert((const unsigned char *) cacert, cacert_len);
+                ESP_ERROR_CHECK(esp_wifi_sta_wpa2_ent_set_ca_cert((const unsigned char *) cacert, cacert_len));
             } else {
                 ESP_LOGE(TAG, "Error %d while reading /certs/wifi_802x_ca_cert.pem", res);
                 nvs_close(nvs_handle);
@@ -268,16 +268,16 @@ int wifi_load_config() {
             nvs_close(nvs_handle);
             return 2;
         }
-        ESP_ERROR_CHECK( esp_wifi_sta_wpa2_ent_set_identity((const unsigned char *) identity, strlen(identity)) );
-        ESP_ERROR_CHECK( esp_wifi_sta_wpa2_ent_set_username((const unsigned char *) identity, strlen(identity)) );
+        ESP_ERROR_CHECK(esp_wifi_sta_wpa2_ent_set_identity((const unsigned char *) identity, strlen(identity)));
+        ESP_ERROR_CHECK(esp_wifi_sta_wpa2_ent_set_username((const unsigned char *) identity, strlen(identity)));
 
-        ESP_ERROR_CHECK( esp_wifi_sta_wpa2_ent_set_password((const unsigned char *) password, strlen(password)) );
+        ESP_ERROR_CHECK(esp_wifi_sta_wpa2_ent_set_password((const unsigned char *) password, strlen(password)));
 
-        ESP_ERROR_CHECK( esp_wifi_sta_wpa2_ent_set_ttls_phase2_method(ESP_EAP_TTLS_PHASE2_MSCHAPV2) );
+        ESP_ERROR_CHECK(esp_wifi_sta_wpa2_ent_set_ttls_phase2_method(ESP_EAP_TTLS_PHASE2_MSCHAPV2));
 
-        ESP_ERROR_CHECK( esp_wifi_sta_wpa2_ent_enable() );
+        ESP_ERROR_CHECK(esp_wifi_sta_wpa2_ent_enable());
 
-        ESP_LOGI(TAG, "Connecting to WiFi with ssid: %s; authmode: %d; validate: %d; identity: %s; password: %s", conf.sta.ssid, authmode, validate_ca_int, identity, password);
+        ESP_LOGI(TAG, "Connecting to WiFi with ssid: %s; authmode: %d; validate: %d; identity: %s", conf.sta.ssid, authmode, validate_ca_int, identity);
     }
 
     nvs_close(nvs_handle);
