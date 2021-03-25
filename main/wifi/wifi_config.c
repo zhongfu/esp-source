@@ -256,6 +256,8 @@ int wifi_load_config() {
                 nvs_close(nvs_handle);
                 return 2;
             }
+        } else {
+            esp_wifi_sta_wpa2_ent_clear_ca_cert();
         }
 
         char identity[64] = {0};
@@ -266,11 +268,14 @@ int wifi_load_config() {
             nvs_close(nvs_handle);
             return 2;
         }
-        esp_wifi_sta_wpa2_ent_set_identity((uint8_t *) identity, 64);
+        ESP_ERROR_CHECK( esp_wifi_sta_wpa2_ent_set_identity((const unsigned char *) identity, strlen(identity)) );
+        ESP_ERROR_CHECK( esp_wifi_sta_wpa2_ent_set_username((const unsigned char *) identity, strlen(identity)) );
 
-        esp_wifi_sta_wpa2_ent_set_password((uint8_t *) password, 64);
+        ESP_ERROR_CHECK( esp_wifi_sta_wpa2_ent_set_password((const unsigned char *) password, strlen(password)) );
 
-        esp_wifi_sta_wpa2_ent_enable();
+        ESP_ERROR_CHECK( esp_wifi_sta_wpa2_ent_set_ttls_phase2_method(ESP_EAP_TTLS_PHASE2_MSCHAPV2) );
+
+        ESP_ERROR_CHECK( esp_wifi_sta_wpa2_ent_enable() );
 
         ESP_LOGI(TAG, "Connecting to WiFi with ssid: %s; authmode: %d; validate: %d; identity: %s; password: %s", conf.sta.ssid, authmode, validate_ca_int, identity, password);
     }

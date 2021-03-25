@@ -298,7 +298,6 @@ static void buffer_poll_loop(esp_mqtt_client_handle_t client) {
 void sling_mqtt_start(struct sling_config *conf) {
     config = conf;
 
-    esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("esp-tls", ESP_LOG_VERBOSE);
     esp_log_level_set("MQTT_CLIENT", ESP_LOG_VERBOSE);
     esp_log_level_set("MQTT_EXAMPLE", ESP_LOG_VERBOSE);
