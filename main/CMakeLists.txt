@@ -4,7 +4,7 @@ idf_component_register(SRCS
                         "wifi/wifi_sta.c"
                         "wifi/wifi_config.c"
                         "wifi/wifi_ap.c"
-                        "wifi/urldecode.c"
+                        "wifi/url_decode.c"
                         "storage/spiffs.c"
                         "sling/sling_mqtt.c"
                         "sling/sling_setup.c"

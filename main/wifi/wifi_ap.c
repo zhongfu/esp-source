@@ -13,7 +13,7 @@
 
 #include "../sling/sling_setup.h"
 #include "wifi_config.h"
-#include "urldecode.h"
+#include "url_decode.h"
  
 #define SERVER_PORT 80
 
@@ -82,7 +82,7 @@ static esp_err_t handler_post_root(httpd_req_t *req) {
         ESP_LOGW(TAG, "SSID not received in request");
         return ESP_OK;
     }
-    urlDecode(ssid, temp);
+    url_decode(ssid, temp);
 
     if (httpd_query_key_value(buffer, "authmode", authmode_c, 8) == ESP_ERR_NOT_FOUND) {
         httpd_resp_set_status(req, "400");
@@ -106,7 +106,7 @@ static esp_err_t handler_post_root(httpd_req_t *req) {
             ESP_LOGW(TAG, "Password not received in request");
             return ESP_OK;
         }
-        urlDecode(password, temp);
+        url_decode(password, temp);
 
         if (authmode == WIFI_AUTH_WPA2_ENTERPRISE) {
             if (httpd_query_key_value(buffer, "identity", temp, 64) == ESP_ERR_NOT_FOUND) {
@@ -115,7 +115,7 @@ static esp_err_t handler_post_root(httpd_req_t *req) {
                 ESP_LOGW(TAG, "Identity not received in request");
                 return ESP_OK;
             }
-            urlDecode(identity, temp);
+            url_decode(identity, temp);
 
             char validate_s[8] = {0}; // idk
             validate = (httpd_query_key_value(buffer, "validate", validate_s, 8) != ESP_ERR_NOT_FOUND); // if not found, then checkbox not checked... probably
