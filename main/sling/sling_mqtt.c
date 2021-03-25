@@ -52,7 +52,7 @@ static void send_raw(esp_mqtt_client_handle_t client, char *msg_type, char *payl
     char *topic = malloc(topic_sz);
     snprintf(topic, topic_sz, "%s/%s", config->client_id, msg_type);
 
-    ESP_LOGI("Sending message to topic %s", topic);
+    ESP_LOGI(TAG, "Sending message to topic %s", topic);
 
     #ifdef SLING_MQTT_DEBUG
     printf("send_raw to %s:\n", topic);
