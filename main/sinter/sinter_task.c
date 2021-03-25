@@ -12,7 +12,9 @@
 
 static const char *TAG = "sinter_task";
 
-static MessageBufferHandle_t mbuf;
+MessageBufferHandle_t mbuf;
+
+static xTaskHandle sinter_task_handle;
 
 static const char *fault_names[] = {"no fault",
                                     "out of memory",
@@ -86,22 +88,15 @@ static void print_flush(bool is_error) {
     size_t buf_len = sizeof(*to_send);
     char *buf = malloc(buf_len);
     memcpy(buf, to_send, buf_len);
-    
+
     xMessageBufferSend(mbuf, buf, buf_len, portMAX_DELAY);
     free(to_send);
     free(buf);
 }
 
-void sinter_task(void *pvParams) {
+static void sinter_task(void *pvParams) {
     // TODO is this safe...?
     struct sinter_run_params *params = (struct sinter_run_params *) pvParams;
-
-    if (params->buffer == NULL) {
-        ESP_LOGE(TAG, "Message buffer is NULL for some reason! Giving up...");
-        return;
-    } else {
-        mbuf = params->buffer;
-    }
 
     sinter_printer_float = print_float;
     sinter_printer_string = print_string;
@@ -123,5 +118,41 @@ void sinter_task(void *pvParams) {
 
     free(params);
     ESP_LOGI(TAG, "task high water mark: %d", uxTaskGetStackHighWaterMark(NULL));
+    sinter_task_handle = NULL;
     vTaskDelete(NULL);
+}
+
+int run_sinter(unsigned char *binary, size_t size) {
+    size_t params_size = sizeof(struct sinter_run_params) + size;
+    struct sinter_run_params *params = malloc(params_size); // freed in sinter_task
+    params->code_size = size;
+    memcpy(params->code, binary, size);
+
+    BaseType_t result = xTaskCreatePinnedToCore(sinter_task,
+        "sinter_task",
+        0x8000,
+        (void*)params,
+        2,
+        &sinter_task_handle,
+        1);
+
+    if (result != pdPASS) {
+        ESP_LOGE(TAG, "Failed to start sinter_task with result %d. Out of heap space?", result);
+        ESP_LOGE(TAG, "Free heap size: %d, min free heap size since boot: %d", xPortGetFreeHeapSize(), xPortGetMinimumEverFreeHeapSize());
+        sinter_task_handle = NULL;
+        return 1;
+    }
+
+    return 0;
+}
+
+int stop_sinter() {
+    if (sinter_task_handle != NULL) { // don't accidentally kill the sling task
+        vTaskDelete(sinter_task_handle);
+        sinter_task_handle = NULL;
+        return 0;
+    } else {
+        ESP_LOGW(TAG, "sinter task handle invalid -- already stopped?");
+        return 1;
+    }
 }

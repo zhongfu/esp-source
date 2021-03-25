@@ -23,10 +23,6 @@
 
 static const char *TAG = "mqtt";
 
-static MessageBufferHandle_t mbuf;
-
-static xTaskHandle sinter_task_handle;
-
 static uint32_t msg_no = 0;
 static uint32_t display_start_counter = 0;
 static bool needs_flush = false;
@@ -104,30 +100,6 @@ static char *get_msg_type(char *topic, size_t size) {
         free(buf);
         return ret;
     }
-}
-
-static int run_sinter(unsigned char *binary, size_t size) {
-    size_t params_size = sizeof(struct sinter_run_params) + size;
-    struct sinter_run_params *params = malloc(params_size); // freed in sinter_task
-    params->buffer = mbuf;
-    params->code_size = size;
-    memcpy(params->code, binary, size);
-
-    BaseType_t result = xTaskCreatePinnedToCore(sinter_task,
-        "sinter_task",
-        0x8000,
-        (void*)params,
-        2,
-        sinter_task_handle,
-        1);
-    
-    if (result != pdPASS) {
-        ESP_LOGE(TAG, "Failed to start sinter_task with result %d. Out of heap space?", result);
-        ESP_LOGE(TAG, "Free heap size: %d, min free heap size since boot: %d", xPortGetFreeHeapSize(), xPortGetMinimumEverFreeHeapSize());
-        return 1;
-    }
-    
-    return 0;
 }
 
 static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
@@ -219,11 +191,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
                     free(binary);
                 } else if (strncmp(msg_type, "stop", cmp_len) == 0) {
                     ESP_LOGI(TAG, "stopping sinter task...");
-                    if (sinter_task_handle != NULL) { // don't accidentally kill the sling task
-                        vTaskDelete(sinter_task_handle);
-                    } else {
-                        ESP_LOGW(TAG, "sinter task handle invalid -- already stopped?");
-                    }
+                    stop_sinter();
                     send_status(client, sling_message_status_type_idle);
                 }
                 free(msg_type);
