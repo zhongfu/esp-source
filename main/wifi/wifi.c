@@ -29,10 +29,10 @@ void wifi_task(void *pvParams) {
     gpio_config_t io_conf;
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_INPUT;
-    io_conf.pin_bit_mask = (1ull << GPIO_NUM_37); // button A
+    io_conf.pin_bit_mask = (1ull << GPIO_NUM_39); // button A
     gpio_config(&io_conf);
 
-    if (gpio_get_level(GPIO_NUM_37) == 0) {
+    if (gpio_get_level(GPIO_NUM_39) == 0) {
         ESP_LOGW(TAG, "Button A pressed, entering AP mode for config");
         wifi_ap_start(); // and don't ever come back here
     } else if (wifi_load_config() != 0) { // failed to load config, what's up?
