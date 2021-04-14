@@ -46,5 +46,7 @@ endmacro()
 add_subdirectory(lib/sinter/vm libsinter)
 remove_flag_from_target(sinter -pedantic)
 
+add_subdirectory(lib/sinter/devices/esp32/components sinter_esp32)
+
 # link sinter
 target_link_libraries(${COMPONENT_LIB} PUBLIC sinter)

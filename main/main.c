@@ -14,6 +14,7 @@
 #include "storage/spiffs.h"
 
 #include "sling/sling.h"
+#include "lib/sinter/devices/esp32/components/internal_functions.h"
 
 static const char *TAG = "main";
 
@@ -70,6 +71,8 @@ void app_main(void) {
                     pdFALSE,
                     pdFALSE,
                     portMAX_DELAY);
+
+  setupInternals();
 
   ESP_LOGI(TAG, "WiFi connected, starting MQTT task...");
   result = xTaskCreatePinnedToCore(&sling_task,

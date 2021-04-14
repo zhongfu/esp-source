@@ -1,6 +1,6 @@
 [submodule "sinter"]
 	path = main/lib/sinter
-	url = git@github.com:source-academy/sinter.git
+	url = https://github.com/XavierChB/sinter.git
 	branch = master
 [submodule "components/espmqtt"]
 	path = components/espmqtt
